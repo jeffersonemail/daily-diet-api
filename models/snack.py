@@ -13,7 +13,8 @@ class Snack(db.Model):
                 "id": snack.id,
                 "snackname": snack.snackname,
                 "description": snack.description,
-                "enjoyed_on": snack.enjoyed_on
+                "enjoyed_on": snack.enjoyed_on,
+                "diet_menu": snack.diet_menu
             }
         
         return None
