@@ -5,6 +5,7 @@ class Snack(db.Model):
     snackname = db.Column(db.String(80), nullable=False)
     description = db.Column(db.String(255), nullable=False)
     enjoyed_on = db.Column(db.DateTime(), nullable=False)
+    diet_menu = db.Column(db.Boolean(), nullable=False, default=False)
 
     def to_dict(snack):
         if snack:
