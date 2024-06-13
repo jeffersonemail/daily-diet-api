@@ -1,6 +1,8 @@
 from flask import Flask, jsonify, request
 from database import db
 from models.snack import Snack
+from models.user import User
+import bcrypt
 
 app = Flask(__name__)
 app.config["SQLALCHEMY_DATABASE_URI"] = "mysql+pymysql://root:admin123@127.0.0.1:3306/daily_diet"
@@ -12,6 +14,75 @@ db.init_app(app)
 def index():
     return "<h1>Daily Diet API</h1>"
 
+### USERS
+# Obter lista de usuários
+@app.route("/user", methods=["GET"])
+def get_user_all():
+    users = User.query.all()
+    response = []
+    if users:
+        if users[0]:
+            for user in users:
+                response.append(User.to_dict(user))
+
+            return response
+    
+    return error_response(status_code=404, message="Nenhum usuário cadastrado.")
+
+# Obter um usuário pelo id
+@app.route("/user/<int:id_user>", methods=["GET"])
+def get_user(id_user):
+    user = User.query.get(id_user)
+
+    if user:
+        return jsonify({"username": user.username})
+    
+    return error_response(status_code=404)
+
+# Cadastrar um novo usuário
+@app.route("/user", methods=["POST"])
+def create_user():
+    data = request.json
+    username = data.get("username")
+    password = data.get("password")
+
+    if username and password:
+        hashed = bcrypt.hashpw(str.encode(password), bcrypt.gensalt())
+        user = User(username=username, password=hashed, role='user')
+        db.session.add(user)
+        db.session.commit()
+
+        return jsonify({"message": "Usuário cadastrado com sucesso."})
+    
+    return jsonify({"message": "As informações do usuário estão incompletas."}), 400
+
+# Atualizar a senha de um usuário
+@app.route("/user/<int:id_user>", methods=["PUT"])
+def update_user(id_user):
+    user = User.query.get(id_user)
+    data = request.json
+    new_password = data.get("password")
+
+    if user and new_password:
+        user.password = bcrypt.hashpw(str.encode(new_password), bcrypt.gensalt())
+        db.session.commit()
+        return jsonify({"message": f"Usuário {id_user} atualizado com sucesso."})
+    
+    return error_response(status_code=404, message=f"Usuário id {id_user} inexistente.")
+
+# Apagar um usuário
+@app.route("/user/<int:id_user>", methods=["DELETE"])
+def delete_user(id_user):
+    user = User.query.get(id_user)
+
+    if user:
+        db.session.delete(user)
+        db.session.commit()
+        return jsonify({"message": f"Usuário {id_user} excluído com sucesso."})
+    
+    return error_response(status_code=404, message=f"Usuário id {id_user} inexistente.")
+
+### SNACKS
 # Cadastrar refeição
 @app.route("/snack", methods=["POST"])
 def register_snack():
@@ -57,7 +128,7 @@ def update_snack(id_snack):
 
 # Apagar refeição
 @app.route("/snack/<int:id_snack>", methods=["DELETE"])
-def delete_user(id_snack):
+def delete_snack(id_snack):
     snack = Snack.query.get(id_snack)
 
     if snack:
@@ -72,17 +143,18 @@ def delete_user(id_snack):
 def get_snack_all():
     snacks = Snack.query.all()
     response = []
-    if snacks[0]:
-        for snack in snacks:
-            response.append(Snack.to_dict(snack))
+    if snacks:
+        if snacks[0]:
+            for snack in snacks:
+                response.append(Snack.to_dict(snack))
 
-        return response
+            return response
     
     return error_response(status_code=404, message="Nenhuma refeição cadastrada.")
 
 # Obter uma refeição pelo id
 @app.route("/snack/<int:id_snack>", methods=["GET"])
-def get_user(id_snack):
+def get_snack(id_snack):
     snack = Snack.query.get(id_snack)
 
     if snack:
