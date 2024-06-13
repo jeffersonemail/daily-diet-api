@@ -1,5 +1,6 @@
 from database import db
 from flask_login import UserMixin
+import bcrypt
 
 class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
@@ -12,7 +13,6 @@ class User(db.Model, UserMixin):
             return {
                 "id": user.id,
                 "username": user.username,
-                "password": user.password,
                 "role": user.role
             }
         

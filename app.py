@@ -1,22 +1,78 @@
 from flask import Flask, jsonify, request
+
+from flask_login import LoginManager, login_user, current_user, logout_user, login_required
+import bcrypt
+
 from database import db
 from models.snack import Snack
 from models.user import User
-import bcrypt
+
+import time
 
 app = Flask(__name__)
+app.config["SECRET_KEY"] = "your_secret_key"
 app.config["SQLALCHEMY_DATABASE_URI"] = "mysql+pymysql://root:admin123@127.0.0.1:3306/daily_diet"
 
+login_manager = LoginManager()
 db.init_app(app)
+
+login_manager.init_app(app)
+# view Login
+login_manager.login_view = 'login'
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(user_id)
 
 # Rota padrão
 @app.route("/", methods=["GET"])
 def index():
     return "<h1>Daily Diet API</h1>"
 
+### Login / Logout
+# Cadastrar Admin
+def startAdmin():
+    hasUsers = User.query.filter_by(role="admin")
+    print(f"hasUsers {hasUsers.first()}")
+    if hasUsers.first() == None:
+        print("entrou no if")
+        master_admin = User(username="admin",password=bcrypt.hashpw(b"admin", bcrypt.gensalt()),role="admin")
+        db.session.add(master_admin)
+        db.session.commit()
+
+# Login
+@app.route("/login", methods=["POST"])
+def login():
+    data = request.json
+    username = data.get("username")
+    password = data.get("password")
+
+    if username and password:
+        user = User.query.filter_by(username=username).first()
+
+        if not user:
+            startAdmin()
+            user = User.query.filter_by(username=username).first()
+            #time.sleep(2)
+
+        if user and bcrypt.checkpw(str.encode(password), str.encode(user.password)):
+            login_user(user)
+            print(current_user.is_authenticated)
+            return jsonify({"message": "Usuário autenticado."})
+
+    return jsonify({"message": "Credenciais incorretas."}), 400
+
+# Logout
+@app.route("/logout", methods=["GET"])
+@login_required
+def logout():
+    logout_user()
+    return jsonify({"message": "Usuário desconectado."})
+
 ### USERS
 # Obter lista de usuários
 @app.route("/user", methods=["GET"])
+@login_required
 def get_user_all():
     users = User.query.all()
     response = []
@@ -31,6 +87,7 @@ def get_user_all():
 
 # Obter um usuário pelo id
 @app.route("/user/<int:id_user>", methods=["GET"])
+@login_required
 def get_user(id_user):
     user = User.query.get(id_user)
 
@@ -41,23 +98,26 @@ def get_user(id_user):
 
 # Cadastrar um novo usuário
 @app.route("/user", methods=["POST"])
+@login_required
 def create_user():
     data = request.json
     username = data.get("username")
     password = data.get("password")
 
-    if username and password:
-        hashed = bcrypt.hashpw(str.encode(password), bcrypt.gensalt())
-        user = User(username=username, password=hashed, role='user')
-        db.session.add(user)
-        db.session.commit()
+    if current_user.role == 'admin':
+        if username and password:
+            hashed = bcrypt.hashpw(str.encode(password), bcrypt.gensalt())
+            user = User(username=username, password=hashed, role='user')
+            db.session.add(user)
+            db.session.commit()
 
-        return jsonify({"message": "Usuário cadastrado com sucesso."})
-    
-    return jsonify({"message": "As informações do usuário estão incompletas."}), 400
+            return jsonify({"message": "Usuário cadastrado com sucesso."})
+        
+        return jsonify({"message": "As informações do usuário estão incompletas."}), 400
 
 # Atualizar a senha de um usuário
 @app.route("/user/<int:id_user>", methods=["PUT"])
+@login_required
 def update_user(id_user):
     user = User.query.get(id_user)
     data = request.json
@@ -72,6 +132,7 @@ def update_user(id_user):
 
 # Apagar um usuário
 @app.route("/user/<int:id_user>", methods=["DELETE"])
+@login_required
 def delete_user(id_user):
     user = User.query.get(id_user)
 
@@ -85,6 +146,7 @@ def delete_user(id_user):
 ### SNACKS
 # Cadastrar refeição
 @app.route("/snack", methods=["POST"])
+@login_required
 def register_snack():
     data = request.json
     snackname = data.get("snackname")
@@ -106,6 +168,7 @@ def register_snack():
 
 # Atualizar refeição
 @app.route("/snack/<int:id_snack>", methods=["PUT"])
+@login_required
 def update_snack(id_snack):
     
     snack = Snack.query.get(id_snack)
@@ -128,6 +191,7 @@ def update_snack(id_snack):
 
 # Apagar refeição
 @app.route("/snack/<int:id_snack>", methods=["DELETE"])
+@login_required
 def delete_snack(id_snack):
     snack = Snack.query.get(id_snack)
 
@@ -140,6 +204,7 @@ def delete_snack(id_snack):
 
 # Obter todas as refeições
 @app.route("/snack", methods=["GET"])
+@login_required
 def get_snack_all():
     snacks = Snack.query.all()
     response = []
@@ -154,6 +219,7 @@ def get_snack_all():
 
 # Obter uma refeição pelo id
 @app.route("/snack/<int:id_snack>", methods=["GET"])
+@login_required
 def get_snack(id_snack):
     snack = Snack.query.get(id_snack)
 
