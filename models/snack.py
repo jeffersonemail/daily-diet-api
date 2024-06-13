@@ -6,6 +6,7 @@ class Snack(db.Model):
     description = db.Column(db.String(255), nullable=False)
     enjoyed_on = db.Column(db.DateTime(), nullable=False)
     diet_menu = db.Column(db.Boolean(), nullable=False, default=False)
+    user_id = db.Column(db.Integer, nullable=False)
 
     def to_dict(snack):
         if snack:

@@ -114,6 +114,8 @@ def create_user():
             return jsonify({"message": "Usuário cadastrado com sucesso."})
         
         return jsonify({"message": "As informações do usuário estão incompletas."}), 400
+    
+    return error_response(status_code=403)
 
 # Atualizar a senha de um usuário
 @app.route("/user/<int:id_user>", methods=["PUT"])
@@ -123,6 +125,9 @@ def update_user(id_user):
     data = request.json
     new_password = data.get("password")
 
+    if id_user != current_user.id and current_user.role == 'user':
+        return error_response(status_code=403)
+    
     if user and new_password:
         user.password = bcrypt.hashpw(str.encode(new_password), bcrypt.gensalt())
         db.session.commit()
@@ -135,6 +140,12 @@ def update_user(id_user):
 @login_required
 def delete_user(id_user):
     user = User.query.get(id_user)
+
+    if current_user.role != 'admin':
+        return error_response(status_code=403)
+
+    if id_user == current_user.id:
+        return error_response(status_code=403, message="O usuário não pode excluir a si mesmo.")
 
     if user:
         db.session.delete(user)
@@ -158,7 +169,7 @@ def register_snack():
         if not diet_menu:
             diet_menu = False
 
-        snack = Snack(snackname=snackname, description=description, enjoyed_on=enjoyed_on, diet_menu=diet_menu)
+        snack = Snack(snackname=snackname, description=description, enjoyed_on=enjoyed_on, diet_menu=diet_menu, user_id=current_user.id)
         db.session.add(snack)
         db.session.commit()
 
@@ -179,13 +190,17 @@ def update_snack(id_snack):
     new_enjoyed_on = data.get("enjoyed_on")
     new_diet_menu = data.get("diet_menu")
 
-    if snack and new_snackname and new_description and new_enjoyed_on and new_diet_menu:
-        snack.snackname = new_snackname
-        snack.description = new_description
-        snack.enjoyed_on = new_enjoyed_on
-        snack.diet_menu = new_diet_menu
-        db.session.commit()
-        return jsonify({"message": f"Refeição {id_snack} atualizada com sucesso."})
+    if snack:
+        if snack.user_id == current_user.id:
+            if new_snackname and new_description and new_enjoyed_on and new_diet_menu:
+                snack.snackname = new_snackname
+                snack.description = new_description
+                snack.enjoyed_on = new_enjoyed_on
+                snack.diet_menu = new_diet_menu
+                db.session.commit()
+                return jsonify({"message": f"Refeição {id_snack} atualizada com sucesso."})
+            
+        return error_response(status_code=403, message=f"Não é possível alterar a refeição de outra pessoa.")
     
     return error_response(status_code=404, message=f"Refeição com id {id_snack} inexistente.")
 
@@ -196,9 +211,12 @@ def delete_snack(id_snack):
     snack = Snack.query.get(id_snack)
 
     if snack:
-        db.session.delete(snack)
-        db.session.commit()
-        return jsonify({"message": f"Refeição com id {id_snack} excluída com sucesso."})
+        if current_user.id == snack.user_id:
+            db.session.delete(snack)
+            db.session.commit()
+            return jsonify({"message": f"Refeição com id {id_snack} excluída com sucesso."})
+        
+        return error_response(status_code=403, message=f"Não é possível excluir a refeição de outra pessoa.")
     
     return error_response(status_code=404, message=f"Refeição com id {id_snack} inexistente.")
 
@@ -206,9 +224,9 @@ def delete_snack(id_snack):
 @app.route("/snack", methods=["GET"])
 @login_required
 def get_snack_all():
-    snacks = Snack.query.all()
+    snacks = Snack.query.filter_by(user_id=current_user.id).order_by(Snack.enjoyed_on)
     response = []
-    if snacks:
+    if not snacks.first() == None:
         if snacks[0]:
             for snack in snacks:
                 response.append(Snack.to_dict(snack))
@@ -221,9 +239,9 @@ def get_snack_all():
 @app.route("/snack/<int:id_snack>", methods=["GET"])
 @login_required
 def get_snack(id_snack):
-    snack = Snack.query.get(id_snack)
+    snack = Snack.query.filter_by(id=id_snack, user_id=current_user.id).first()
 
-    if snack:
+    if not snack == None:
         return jsonify(Snack.to_dict(snack))
     
     return error_response(status_code=404)
